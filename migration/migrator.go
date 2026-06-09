@@ -1,0 +1,200 @@
+package migration
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"os"
+	"sort"
+	"text/template"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+)
+
+var migrator = &Migrator{
+	Migrations: map[string]*Migration{},
+}
+
+// Init : initialize schema migrations
+func Init(db *sqlx.DB) (*Migrator, error) {
+	migrator.db = db
+
+	// Create schema_migrations table to remember which migrations were executed.
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+		id SERIAL PRIMARY KEY,
+		name VARCHAR(255) NOT NULL,
+		batch INT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+		`); err != nil {
+		fmt.Println("Unable to create schema_migrations table", err)
+		return migrator, err
+	}
+
+	rows, err := db.Queryx("SELECT * FROM schema_migrations;")
+	if err != nil {
+		return migrator, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var mg Migration
+		err := rows.StructScan(&mg)
+		if err != nil {
+			return migrator, err
+		}
+
+		if migrator.Migrations[mg.Name] != nil {
+			migrator.Migrations[mg.Name].ID = mg.ID
+			migrator.Migrations[mg.Name].Name = mg.Name
+			migrator.Migrations[mg.Name].Batch = mg.Batch
+			migrator.Migrations[mg.Name].done = true
+		}
+
+		if migrator.MaxBatch < mg.Batch {
+			migrator.MaxBatch = mg.Batch
+		}
+	}
+
+	return migrator, nil
+}
+
+func Create(name string) error {
+	version := time.Now().Format("20060102150405")
+
+	in := struct {
+		Version string
+		Name    string
+	}{
+		Version: version,
+		Name:    name,
+	}
+
+	var out bytes.Buffer
+
+	t := template.Must(template.ParseFiles("./migration/template.txt"))
+	if err := t.Execute(&out, in); err != nil {
+		return errors.New("Unable to execute template: " + err.Error())
+	}
+
+	f, err := os.Create(fmt.Sprintf("./migration/%s_%s.go", version, name))
+
+	if err != nil {
+		return errors.New("Unable to create migration file: " + err.Error())
+	}
+
+	defer f.Close()
+
+	if _, err := f.WriteString(out.String()); err != nil {
+		return errors.New("Unable to write to migration file: " + err.Error())
+	}
+
+	fmt.Println("Generated new migration file...", f.Name())
+	return nil
+}
+
+// AddMigration : add new migration version
+func (m *Migrator) AddMigration(mg *Migration) {
+	// Add the migration to the hash with version as key
+	m.Migrations[mg.Name] = mg
+}
+
+// Up .
+func (m *Migrator) Up() error {
+	tx, err := m.db.Beginx()
+	if err != nil {
+		return err
+	}
+
+	// Sort migrations by name to ensure they run in chronological order
+	var migrationNames []string
+	for name := range m.Migrations {
+		migrationNames = append(migrationNames, name)
+	}
+	// Sort migration names (they have timestamp prefixes like "20250227233650_")
+	sort.Strings(migrationNames)
+
+	// Execute migrations in sorted order
+	for _, name := range migrationNames {
+		mg := m.Migrations[name]
+		if mg.done {
+			continue
+		}
+
+		fmt.Println("Running migration", mg.Name)
+		if err := mg.Up(tx); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if _, err := tx.Exec("INSERT INTO schema_migrations (name, batch) VALUES($1, $2)", mg.Name, m.MaxBatch+1); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		fmt.Println("Finished running migration", mg.Name)
+	}
+
+	return tx.Commit()
+}
+
+// Down .
+func (m *Migrator) Down() error {
+	tx, err := m.db.Beginx()
+	if err != nil {
+		return err
+	}
+
+	// Sort migrations by name to ensure they revert in reverse chronological order
+	var migrationNames []string
+	for name, mg := range m.Migrations {
+		if mg.done && mg.Batch == m.MaxBatch {
+			migrationNames = append(migrationNames, name)
+		}
+	}
+	// Sort in reverse order (newest first)
+	sort.Sort(sort.Reverse(sort.StringSlice(migrationNames)))
+
+	// Revert migrations in reverse chronological order
+	for _, name := range migrationNames {
+		mg := m.Migrations[name]
+
+		fmt.Println("Reverting migration", mg.Name)
+		if err := mg.Down(tx); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if _, err := tx.Exec("DELETE FROM schema_migrations WHERE id = $1", mg.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		fmt.Println("Finished reverting migration", mg.Name)
+	}
+
+	return tx.Commit()
+}
+
+// MigrationStatus .
+func (m *Migrator) MigrationStatus() error {
+	// Sort migrations by name for consistent output
+	var migrationNames []string
+	for name := range m.Migrations {
+		migrationNames = append(migrationNames, name)
+	}
+	// Sort in chronological order
+	sort.Strings(migrationNames)
+
+	// Display status in sorted order
+	for _, name := range migrationNames {
+		mg := m.Migrations[name]
+		if mg.done {
+			fmt.Printf("%s\n", fmt.Sprintf("Migration %s... completed", mg.Name))
+		} else {
+			fmt.Printf("%s\n", fmt.Sprintf("Migration %s... pending", mg.Name))
+		}
+	}
+
+	return nil
+}

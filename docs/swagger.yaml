@@ -1,0 +1,318 @@
+definitions:
+  checkout.AppliedPromotionResponse:
+    properties:
+      discount_cents:
+        type: integer
+      promotion_code:
+        type: string
+      promotion_name:
+        type: string
+      promotion_type:
+        type: string
+    type: object
+  checkout.CheckoutItemRequest:
+    properties:
+      quantity:
+        type: integer
+      sku:
+        type: string
+    required:
+    - quantity
+    - sku
+    type: object
+  checkout.CheckoutItemResponse:
+    properties:
+      name:
+        type: string
+      quantity:
+        type: integer
+      sku:
+        type: string
+      total_price_cents:
+        type: integer
+      unit_price_cents:
+        type: integer
+    type: object
+  checkout.CheckoutResponse:
+    properties:
+      applied_promotions:
+        items:
+          $ref: '#/definitions/checkout.AppliedPromotionResponse'
+        type: array
+      checkout_id:
+        type: string
+      created_at:
+        type: string
+      discount_cents:
+        type: integer
+      formatted_total:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/checkout.CheckoutItemResponse'
+        type: array
+      status:
+        type: string
+      subtotal_cents:
+        type: integer
+      total_cents:
+        type: integer
+    type: object
+  checkout.CreateCheckoutRequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/checkout.CheckoutItemRequest'
+        minItems: 1
+        type: array
+    required:
+    - items
+    type: object
+  health_check.StatusCheck:
+    properties:
+      db_status:
+        example: OK/ERROR
+        type: string
+    type: object
+  pagination.PaginationResponse:
+    properties:
+      page:
+        example: 1
+        type: integer
+      page_count:
+        example: 10
+        type: integer
+      per_page:
+        example: 20
+        type: integer
+      total_count:
+        example: 200
+        type: integer
+    type: object
+  product.GetAllProductResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/pagination.PaginationResponse'
+      products:
+        items:
+          $ref: '#/definitions/product.ProductResponse'
+        type: array
+    type: object
+  product.ProductResponse:
+    properties:
+      formatted_price:
+        type: string
+      inventory_qty:
+        type: integer
+      name:
+        type: string
+      price_cents:
+        type: integer
+      sku:
+        type: string
+      uuid:
+        type: string
+    type: object
+  response.DefaultResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+    type: object
+  response.ErrorResponse:
+    properties:
+      data: {}
+      error_code:
+        type: string
+      message:
+        type: string
+    type: object
+host: localhost:9000
+info:
+  contact:
+    email: rachmat.adi.p@gmail.com
+    name: Rachmat Adi Prakoso
+  description: This is boilerplate code for golang project
+  title: Go-Boilerplate
+  version: 1.0.0
+paths:
+  /checkouts:
+    post:
+      consumes:
+      - application/json
+      description: API for checkout products
+      parameters:
+      - description: checkout request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/checkout.CreateCheckoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.DefaultResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/checkout.CheckoutResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+      summary: Create Checkout
+      tags:
+      - Checkouts
+  /checkouts/{uuid}:
+    get:
+      description: API for get checkout detail
+      parameters:
+      - description: checkout uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.DefaultResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/checkout.CheckoutResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+      summary: Get Checkout Detail
+      tags:
+      - Checkouts
+  /health:
+    get:
+      description: API for do health check to dependencies used
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.DefaultResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/health_check.StatusCheck'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.DefaultResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/health_check.StatusCheck'
+              type: object
+      summary: Health Check
+      tags:
+      - Health Check
+  /products:
+    get:
+      description: API for get all products
+      parameters:
+      - default: 1
+        description: page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: per_page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.DefaultResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/product.GetAllProductResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+      summary: Get All Products
+      tags:
+      - Products
+swagger: "2.0"
