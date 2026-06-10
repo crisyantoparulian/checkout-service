@@ -19,7 +19,9 @@ func TestProductRepo_Integration(t *testing.T) {
 
 	// Get seeded product UUIDs for tests
 	var macBookUUID, raspberryUUID, googleHomeUUID, alexaUUID uuid.UUID
-	err := tdb.DB.QueryRowx(`SELECT uuid FROM products WHERE sku = '43N23P'`).StructScan(&struct{ UUID uuid.UUID `db:"uuid"` }{})
+	err := tdb.DB.QueryRowx(`SELECT uuid FROM products WHERE sku = '43N23P'`).StructScan(&struct {
+		UUID uuid.UUID `db:"uuid"`
+	}{})
 	require.NoError(t, err)
 	tdb.DB.QueryRowx(`SELECT uuid FROM products WHERE sku = '43N23P'`).Scan(&macBookUUID)
 	tdb.DB.QueryRowx(`SELECT uuid FROM products WHERE sku = '234234'`).Scan(&raspberryUUID)
@@ -96,14 +98,14 @@ func TestProductRepo_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		productMap := map[string]struct {
-			Name        string
-			PriceCents  int64
+			Name         string
+			PriceCents   int64
 			InventoryQty int
 		}{}
 		for _, p := range products {
 			productMap[p.SKU] = struct {
-				Name        string
-				PriceCents  int64
+				Name         string
+				PriceCents   int64
 				InventoryQty int
 			}{Name: p.Name, PriceCents: p.PriceCents, InventoryQty: p.InventoryQty}
 		}

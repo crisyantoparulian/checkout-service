@@ -101,9 +101,9 @@ func TestCheckoutUsecase_Create_Integration(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		assert.Equal(t, int64(14997), resp.SubtotalCents)  // 4999 * 3
-		assert.Equal(t, int64(4999), resp.DiscountCents)    // 1 free Google Home
-		assert.Equal(t, int64(9998), resp.TotalCents)       // 14997 - 4999
+		assert.Equal(t, int64(14997), resp.SubtotalCents) // 4999 * 3
+		assert.Equal(t, int64(4999), resp.DiscountCents)  // 1 free Google Home
+		assert.Equal(t, int64(9998), resp.TotalCents)     // 14997 - 4999
 		assert.Len(t, resp.AppliedPromotions, 1)
 		assert.Equal(t, "BUY_X_PAY_Y", resp.AppliedPromotions[0].PromotionType)
 	})
