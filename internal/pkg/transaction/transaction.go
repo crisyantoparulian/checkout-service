@@ -7,6 +7,11 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// ManagerInterface defines the interface for transaction management.
+type ManagerInterface interface {
+	WithTx(ctx context.Context, fn func(tx *sqlx.Tx) error) error
+}
+
 // Manager provides a general-purpose transaction wrapper
 // that any usecase can use regardless of which repository it calls.
 type Manager struct {

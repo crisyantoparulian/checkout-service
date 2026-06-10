@@ -12,17 +12,19 @@ definitions:
     type: object
   checkout.CheckoutItemRequest:
     properties:
+      product_uuid:
+        type: string
       quantity:
         type: integer
-      sku:
-        type: string
     required:
+    - product_uuid
     - quantity
-    - sku
     type: object
   checkout.CheckoutItemResponse:
     properties:
       name:
+        type: string
+      product_uuid:
         type: string
       quantity:
         type: integer
@@ -130,8 +132,8 @@ definitions:
 host: localhost:9000
 info:
   contact:
-    email: rachmat.adi.p@gmail.com
-    name: Rachmat Adi Prakoso
+    email: crisyanto.p@gmail.com
+    name: Crisyanto Parulian
   description: This is boilerplate code for golang project
   title: Go-Boilerplate
   version: 1.0.0

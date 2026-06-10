@@ -4,8 +4,8 @@
         "description": "This is boilerplate code for golang project",
         "title": "Go-Boilerplate",
         "contact": {
-            "name": "Rachmat Adi Prakoso",
-            "email": "rachmat.adi.p@gmail.com"
+            "name": "Crisyanto Parulian",
+            "email": "crisyanto.p@gmail.com"
         },
         "version": "1.0.0"
     },
@@ -362,15 +362,15 @@
         "checkout.CheckoutItemRequest": {
             "type": "object",
             "required": [
-                "quantity",
-                "sku"
+                "product_uuid",
+                "quantity"
             ],
             "properties": {
+                "product_uuid": {
+                    "type": "string"
+                },
                 "quantity": {
                     "type": "integer"
-                },
-                "sku": {
-                    "type": "string"
                 }
             }
         },
@@ -378,6 +378,9 @@
             "type": "object",
             "properties": {
                 "name": {
+                    "type": "string"
+                },
+                "product_uuid": {
                     "type": "string"
                 },
                 "quantity": {

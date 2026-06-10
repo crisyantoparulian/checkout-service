@@ -19,6 +19,7 @@ func mapCheckoutResponse(checkout entity.Checkout, items []entity.CheckoutItem, 
 	}
 	for _, item := range items {
 		resp.Items = append(resp.Items, CheckoutItemResponse{
+			ProductUUID:     item.ProductUUID.String(),
 			SKU:             item.SKU,
 			Name:            item.ProductName,
 			Quantity:        item.Quantity,

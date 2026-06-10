@@ -350,7 +350,6 @@ All successful REST responses must use the repository standard response wrapper 
     "products": [
       {
         "uuid": "11111111-1111-1111-1111-111111111111",
-        "sku": "120P90",
         "name": "Google Home",
         "price_cents": 4999,
         "formatted_price": "$49.99",
@@ -358,7 +357,6 @@ All successful REST responses must use the repository standard response wrapper 
       },
       {
         "uuid": "22222222-2222-2222-2222-222222222222",
-        "sku": "43N23P",
         "name": "MacBook Pro",
         "price_cents": 539999,
         "formatted_price": "$5,399.99",
@@ -392,11 +390,11 @@ Content-Type: application/json
 {
   "items": [
     {
-      "sku": "43N23P",
+      "product_uuid": "22222222-2222-2222-2222-222222222222",
       "quantity": 1
     },
     {
-      "sku": "234234",
+      "product_uuid": "44444444-4444-4444-4444-444444444444",
       "quantity": 1
     }
   ]

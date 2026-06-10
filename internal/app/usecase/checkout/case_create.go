@@ -15,17 +15,19 @@ import (
 )
 
 func (u *usecase) Create(ctx context.Context, req CreateCheckoutRequest) (resp CheckoutResponse, err error) {
-	quantityBySKU, skus, err := buildCheckoutQuantities(req)
+	quantityByUUID, productUUIDs, err := buildCheckoutQuantities(req)
 	if err != nil {
 		return
 	}
 
-	rules, err := u.promotionRepository.GetActiveRulesByTargetSKUs(ctx, skus)
+	// Fetch promotion rules by target product UUIDs
+	rules, err := u.promotionRepository.GetActiveRulesByTargetProductUUIDs(ctx, productUUIDs)
 	if err != nil {
 		return
 	}
 
-	skus = appendRewardSKUs(skus, rules)
+	// Collect all UUIDs to lock: cart products + reward products
+	allUUIDs := appendLockedUUIDs(productUUIDs, rules)
 
 	var (
 		checkout          entity.Checkout
@@ -34,22 +36,29 @@ func (u *usecase) Create(ctx context.Context, req CreateCheckoutRequest) (resp C
 	)
 
 	err = u.txManager.WithTx(ctx, func(tx *sqlx.Tx) error {
-		products, err := u.productRepository.GetBySKUsForUpdate(ctx, tx, skus)
+		// Single lock query for all products (cart + reward)
+		lockedProducts, err := u.productRepository.GetByUUIDsForUpdate(ctx, tx, allUUIDs)
 		if err != nil {
 			return err
 		}
 
-		productBySKU, err := validateCheckoutProducts(quantityBySKU, products)
+		// Build map and validate stock with locked data
+		productByUUID, err := validateAndRefreshProducts(quantityByUUID, lockedProducts, nil)
 		if err != nil {
 			return err
 		}
 
-		appliedPromotions, discount, err := u.applyPromotions(quantityBySKU, productBySKU, rules)
+		var discount int64
+		var rewardQuantityByUUID map[string]int
+		appliedPromotions, rewardQuantityByUUID, discount, err = u.applyPromotions(quantityByUUID, productByUUID, rules)
 		if err != nil {
 			return err
 		}
 
-		checkoutItems, subtotal := buildCheckoutItems(req, productBySKU)
+		var subtotal int64
+		checkoutItems, subtotal = buildCheckoutItems(req, productByUUID)
+		checkoutItems, subtotal = appendRewardCheckoutItems(checkoutItems, subtotal, rewardQuantityByUUID, productByUUID)
+		deductQuantityByUUID := mergeQuantities(quantityByUUID, rewardQuantityByUUID)
 
 		checkout = entity.Checkout{
 			Status:        statusCompleted,
@@ -69,7 +78,7 @@ func (u *usecase) Create(ctx context.Context, req CreateCheckoutRequest) (resp C
 			return err
 		}
 
-		if err := u.deductInventory(ctx, tx, checkout.UUID, quantityBySKU, productBySKU); err != nil {
+		if err := u.deductInventory(ctx, tx, checkout.UUID, deductQuantityByUUID, productByUUID); err != nil {
 			return err
 		}
 
@@ -83,47 +92,59 @@ func (u *usecase) Create(ctx context.Context, req CreateCheckoutRequest) (resp C
 	return
 }
 
-func buildCheckoutQuantities(req CreateCheckoutRequest) (map[string]int, []string, error) {
-	quantityBySKU := map[string]int{}
-	skus := []string{}
+func buildCheckoutQuantities(req CreateCheckoutRequest) (map[string]int, []uuid.UUID, error) {
+	quantityByUUID := map[string]int{}
+	var productUUIDs []uuid.UUID
 	for _, item := range req.Items {
 		if item.Quantity <= 0 {
 			return nil, nil, apperror.New(http.StatusBadRequest, constants.CODE_INVALID_QUANTITY, errors.New("quantity must be greater than zero"))
 		}
-		if quantityBySKU[item.SKU] == 0 {
-			skus = append(skus, item.SKU)
+		if quantityByUUID[item.ProductUUID] == 0 {
+			productUUID, err := uuid.Parse(item.ProductUUID)
+			if err != nil {
+				return nil, nil, apperror.New(http.StatusBadRequest, constants.CODE_PRODUCT_NOT_FOUND, fmt.Errorf("invalid product_uuid: %s", item.ProductUUID))
+			}
+			productUUIDs = append(productUUIDs, productUUID)
 		}
-		quantityBySKU[item.SKU] += item.Quantity
+		quantityByUUID[item.ProductUUID] += item.Quantity
 	}
-	return quantityBySKU, skus, nil
+	return quantityByUUID, productUUIDs, nil
 }
 
-func validateCheckoutProducts(quantityBySKU map[string]int, products []entity.Product) (map[string]entity.Product, error) {
-	productBySKU := map[string]entity.Product{}
-	for _, product := range products {
-		productBySKU[product.SKU] = product
+// validateAndRefreshProducts updates (or creates) a product map from the given products
+// and validates that requested quantities are available in stock.
+// If existingMap is nil, a new map is created. If provided, it is updated in-place.
+func validateAndRefreshProducts(quantityByUUID map[string]int, products []entity.Product, existingMap map[string]entity.Product) (map[string]entity.Product, error) {
+	productByUUID := existingMap
+	if productByUUID == nil {
+		productByUUID = map[string]entity.Product{}
 	}
 
-	for sku, qty := range quantityBySKU {
-		product, ok := productBySKU[sku]
+	for _, product := range products {
+		productByUUID[product.UUID.String()] = product
+	}
+
+	for uuidStr, qty := range quantityByUUID {
+		product, ok := productByUUID[uuidStr]
 		if !ok {
-			return nil, apperror.New(http.StatusNotFound, constants.CODE_PRODUCT_NOT_FOUND, fmt.Errorf("product %s not found", sku))
+			return nil, apperror.New(http.StatusNotFound, constants.CODE_PRODUCT_NOT_FOUND, fmt.Errorf("product %s not found", uuidStr))
 		}
 		if product.InventoryQty < qty {
 			return nil, apperror.New(http.StatusConflict, constants.CODE_INSUFFICIENT_STOCK, fmt.Errorf("product %s only has %d items available", product.Name, product.InventoryQty))
 		}
 	}
-	return productBySKU, nil
+	return productByUUID, nil
 }
 
-func buildCheckoutItems(req CreateCheckoutRequest, productBySKU map[string]entity.Product) ([]entity.CheckoutItem, int64) {
+func buildCheckoutItems(req CreateCheckoutRequest, productByUUID map[string]entity.Product) ([]entity.CheckoutItem, int64) {
 	checkoutItems := []entity.CheckoutItem{}
 	var subtotal int64
 	for _, item := range req.Items {
-		product := productBySKU[item.SKU]
+		product := productByUUID[item.ProductUUID]
 		totalPrice := product.PriceCents * int64(item.Quantity)
 		subtotal += totalPrice
 		checkoutItems = append(checkoutItems, entity.CheckoutItem{
+			ProductUUID:     product.UUID,
 			SKU:             product.SKU,
 			ProductName:     product.Name,
 			Quantity:        item.Quantity,
@@ -132,6 +153,37 @@ func buildCheckoutItems(req CreateCheckoutRequest, productBySKU map[string]entit
 		})
 	}
 	return checkoutItems, subtotal
+}
+
+func appendRewardCheckoutItems(checkoutItems []entity.CheckoutItem, subtotal int64, rewardQuantityByUUID map[string]int, productByUUID map[string]entity.Product) ([]entity.CheckoutItem, int64) {
+	for uuidStr, qty := range rewardQuantityByUUID {
+		if qty <= 0 {
+			continue
+		}
+		product := productByUUID[uuidStr]
+		totalPrice := product.PriceCents * int64(qty)
+		subtotal += totalPrice
+		checkoutItems = append(checkoutItems, entity.CheckoutItem{
+			ProductUUID:     product.UUID,
+			SKU:             product.SKU,
+			ProductName:     product.Name,
+			Quantity:        qty,
+			UnitPriceCents:  product.PriceCents,
+			TotalPriceCents: totalPrice,
+		})
+	}
+	return checkoutItems, subtotal
+}
+
+func mergeQuantities(base map[string]int, extra map[string]int) map[string]int {
+	merged := map[string]int{}
+	for uuidStr, qty := range base {
+		merged[uuidStr] = qty
+	}
+	for uuidStr, qty := range extra {
+		merged[uuidStr] += qty
+	}
+	return merged
 }
 
 func (u *usecase) createCheckoutItems(ctx context.Context, tx *sqlx.Tx, checkoutUUID uuid.UUID, checkoutItems []entity.CheckoutItem) error {
@@ -165,14 +217,15 @@ func (u *usecase) createCheckoutPromotions(ctx context.Context, tx *sqlx.Tx, che
 	return nil
 }
 
-func (u *usecase) deductInventory(ctx context.Context, tx *sqlx.Tx, checkoutUUID uuid.UUID, quantityBySKU map[string]int, productBySKU map[string]entity.Product) error {
-	for sku, qty := range quantityBySKU {
-		product := productBySKU[sku]
-		if err := u.productRepository.DeductStock(ctx, tx, sku, qty); err != nil {
+func (u *usecase) deductInventory(ctx context.Context, tx *sqlx.Tx, checkoutUUID uuid.UUID, quantityByUUID map[string]int, productByUUID map[string]entity.Product) error {
+	for uuidStr, qty := range quantityByUUID {
+		product := productByUUID[uuidStr]
+		if err := u.productRepository.DeductStock(ctx, tx, product.UUID, qty); err != nil {
 			return err
 		}
 		movement := entity.InventoryMovement{
-			SKU:          sku,
+			ProductUUID:  product.UUID,
+			SKU:          product.SKU,
 			CheckoutUUID: uuid.NullUUID{UUID: checkoutUUID, Valid: true},
 			MovementType: movementTypeCheckoutDeduct,
 			Quantity:     -qty,
@@ -187,17 +240,18 @@ func (u *usecase) deductInventory(ctx context.Context, tx *sqlx.Tx, checkoutUUID
 	return nil
 }
 
-
-func appendRewardSKUs(skus []string, rules []entity.PromotionRule) []string {
-	seen := map[string]bool{}
-	for _, s := range skus {
-		seen[s] = true
+func appendLockedUUIDs(productUUIDs []uuid.UUID, rules []entity.PromotionRule) []uuid.UUID {
+	seen := map[uuid.UUID]bool{}
+	var allUUIDs []uuid.UUID
+	for _, id := range productUUIDs {
+		allUUIDs = append(allUUIDs, id)
+		seen[id] = true
 	}
 	for _, rule := range rules {
-		if rule.RewardSKU.Valid && !seen[rule.RewardSKU.String] {
-			skus = append(skus, rule.RewardSKU.String)
-			seen[rule.RewardSKU.String] = true
+		if rule.RewardProductUUID.Valid && !seen[rule.RewardProductUUID.UUID] {
+			allUUIDs = append(allUUIDs, rule.RewardProductUUID.UUID)
+			seen[rule.RewardProductUUID.UUID] = true
 		}
 	}
-	return skus
+	return allUUIDs
 }

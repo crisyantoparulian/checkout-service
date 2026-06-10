@@ -9,9 +9,6 @@ import (
 
 const (
 	statusCompleted            = "COMPLETED"
-	promotionTypeFreeProduct   = "FREE_PRODUCT"
-	promotionTypeBuyXPayY      = "BUY_X_PAY_Y"
-	promotionTypePercentage    = "PERCENTAGE_DISCOUNT"
 	movementTypeCheckoutDeduct = "CHECKOUT_DEDUCT"
 	timeFormat                 = "2006-01-02T15:04:05Z0700"
 )
@@ -22,7 +19,7 @@ type CheckoutUsecase interface {
 }
 
 type usecase struct {
-	txManager           *transaction.Manager
+	txManager           transaction.ManagerInterface
 	checkoutRepository  repository.Checkout
 	productRepository   repository.Product
 	promotionRepository repository.Promotion
@@ -33,7 +30,7 @@ func NewUsecase() *usecase {
 	return &usecase{}
 }
 
-func (u *usecase) SetTxManager(tm *transaction.Manager) *usecase {
+func (u *usecase) SetTxManager(tm transaction.ManagerInterface) *usecase {
 	u.txManager = tm
 	return u
 }

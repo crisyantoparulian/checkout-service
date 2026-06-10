@@ -10,8 +10,8 @@ const docTemplate = `{
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
         "contact": {
-            "name": "Rachmat Adi Prakoso",
-            "email": "rachmat.adi.p@gmail.com"
+            "name": "Crisyanto Parulian",
+            "email": "crisyanto.p@gmail.com"
         },
         "version": "{{.Version}}"
     },
@@ -369,15 +369,15 @@ const docTemplate = `{
         "checkout.CheckoutItemRequest": {
             "type": "object",
             "required": [
-                "quantity",
-                "sku"
+                "product_uuid",
+                "quantity"
             ],
             "properties": {
+                "product_uuid": {
+                    "type": "string"
+                },
                 "quantity": {
                     "type": "integer"
-                },
-                "sku": {
-                    "type": "string"
                 }
             }
         },
@@ -385,6 +385,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "name": {
+                    "type": "string"
+                },
+                "product_uuid": {
                     "type": "string"
                 },
                 "quantity": {

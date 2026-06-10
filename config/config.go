@@ -39,6 +39,7 @@ type Config struct {
 
 func Load() Config {
 	viper.SetConfigFile(".env")
+	viper.AutomaticEnv()
 	if err := viper.ReadInConfig(); err != nil {
 		panic(err)
 	}

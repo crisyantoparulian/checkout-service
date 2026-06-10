@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"github.com/crisyantoparulian/checkout-service/internal/app/entity"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
 type Promotion interface {
-	GetActiveRulesByTargetSKUs(ctx context.Context, skus []string) ([]entity.PromotionRule, error)
+	GetActiveRulesByTargetProductUUIDs(ctx context.Context, productUUIDs []uuid.UUID) ([]entity.PromotionRule, error)
 }
 
 type promotion struct {
@@ -22,7 +23,7 @@ func NewPromotionRepository(db *sqlx.DB) Promotion {
 	return &promotion{db: db}
 }
 
-func (r *promotion) GetActiveRulesByTargetSKUs(ctx context.Context, skus []string) ([]entity.PromotionRule, error) {
+func (r *promotion) GetActiveRulesByTargetProductUUIDs(ctx context.Context, productUUIDs []uuid.UUID) ([]entity.PromotionRule, error) {
 	var rules []entity.PromotionRule
 	query, args, err := sqlx.In(`
 		SELECT
@@ -31,7 +32,9 @@ func (r *promotion) GetActiveRulesByTargetSKUs(ctx context.Context, skus []strin
 			p.code AS promotion_code,
 			p.name AS promotion_name,
 			pr.promotion_type,
+			pr.target_product_uuid,
 			pr.target_sku,
+			pr.reward_product_uuid,
 			pr.reward_sku,
 			pr.min_quantity,
 			pr.buy_quantity,
@@ -47,9 +50,9 @@ func (r *promotion) GetActiveRulesByTargetSKUs(ctx context.Context, skus []strin
 		WHERE p.is_active = TRUE
 			AND (p.start_at IS NULL OR p.start_at <= CURRENT_TIMESTAMP)
 			AND (p.end_at IS NULL OR p.end_at >= CURRENT_TIMESTAMP)
-			AND pr.target_sku IN (?)
+			AND pr.target_product_uuid IN (?)
 		ORDER BY pr.priority ASC, pr.created_at ASC
-	`, skus)
+	`, productUUIDs)
 	if err != nil {
 		return nil, err
 	}

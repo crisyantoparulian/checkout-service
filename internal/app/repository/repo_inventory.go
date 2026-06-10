@@ -24,13 +24,13 @@ func NewInventoryRepository(db *sqlx.DB) Inventory {
 
 func (r *inventory) CreateMovement(ctx context.Context, tx *sqlx.Tx, movement *entity.InventoryMovement) error {
 	stmt, err := tx.PreparexContext(ctx, `
-		INSERT INTO inventory_movements (sku, checkout_uuid, movement_type, quantity, stock_before, stock_after, note, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+		INSERT INTO inventory_movements (product_uuid, sku, checkout_uuid, movement_type, quantity, stock_before, stock_after, note, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
 		RETURNING uuid
 	`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	return stmt.GetContext(ctx, &movement.UUID, movement.SKU, movement.CheckoutUUID, movement.MovementType, movement.Quantity, movement.StockBefore, movement.StockAfter, movement.Note)
+	return stmt.GetContext(ctx, &movement.UUID, movement.ProductUUID, movement.SKU, movement.CheckoutUUID, movement.MovementType, movement.Quantity, movement.StockBefore, movement.StockAfter, movement.Note)
 }

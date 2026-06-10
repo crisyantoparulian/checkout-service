@@ -5,11 +5,12 @@ type CreateCheckoutRequest struct {
 }
 
 type CheckoutItemRequest struct {
-	SKU      string `json:"sku" validate:"required"`
-	Quantity int    `json:"quantity" validate:"required,gt=0"`
+	ProductUUID string `json:"product_uuid" validate:"required"`
+	Quantity    int    `json:"quantity" validate:"required,gt=0"`
 }
 
 type CheckoutItemResponse struct {
+	ProductUUID     string `json:"product_uuid"`
 	SKU             string `json:"sku"`
 	Name            string `json:"name"`
 	Quantity        int    `json:"quantity"`

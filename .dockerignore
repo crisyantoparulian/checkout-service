@@ -1,0 +1,13 @@
+.git
+.gitignore
+Dockerfile
+.dockerignore
+.env
+coverage.cov
+*.test
+.tmp
+.DS_Store
+.claude
+.vscode
+.idea
+node_modules

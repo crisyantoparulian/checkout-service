@@ -9,8 +9,8 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Short: "Go-Boilerplate",
-	Long:  `Go-Boilerplate -- Make start new project easier. May The Force Be With Us!`,
+	Short: "Checkout SVC",
+	Long:  `Checkout Service -- Make start new project easier. May The Force Be With Us!`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

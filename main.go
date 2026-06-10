@@ -9,8 +9,8 @@ import (
 // @version 1.0.0
 // @description This is boilerplate code for golang project
 
-// @contact.name Rachmat Adi Prakoso
-// @contact.email rachmat.adi.p@gmail.com
+// @contact.name Crisyanto Parulian
+// @contact.email crisyanto.p@gmail.com
 
 // @host localhost:9000
 func main() {

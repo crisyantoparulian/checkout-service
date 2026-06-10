@@ -36,7 +36,9 @@ type PromotionRule struct {
 	PromotionCode      string          `db:"promotion_code" json:"promotion_code"`
 	PromotionName      string          `db:"promotion_name" json:"promotion_name"`
 	PromotionType      string          `db:"promotion_type" json:"promotion_type"`
+	TargetProductUUID  uuid.UUID       `db:"target_product_uuid" json:"target_product_uuid"`
 	TargetSKU          string          `db:"target_sku" json:"target_sku"`
+	RewardProductUUID  uuid.NullUUID   `db:"reward_product_uuid" json:"reward_product_uuid"`
 	RewardSKU          sql.NullString  `db:"reward_sku" json:"reward_sku"`
 	MinQuantity        sql.NullInt64   `db:"min_quantity" json:"min_quantity"`
 	BuyQuantity        sql.NullInt64   `db:"buy_quantity" json:"buy_quantity"`
@@ -62,6 +64,7 @@ type Checkout struct {
 type CheckoutItem struct {
 	UUID            uuid.UUID `db:"uuid"`
 	CheckoutUUID    uuid.UUID `db:"checkout_uuid"`
+	ProductUUID     uuid.UUID `db:"product_uuid"`
 	SKU             string    `db:"sku"`
 	ProductName     string    `db:"product_name"`
 	Quantity        int       `db:"quantity"`
@@ -85,6 +88,7 @@ type CheckoutPromotion struct {
 
 type InventoryMovement struct {
 	UUID         uuid.UUID      `db:"uuid"`
+	ProductUUID  uuid.UUID      `db:"product_uuid"`
 	SKU          string         `db:"sku"`
 	CheckoutUUID uuid.NullUUID  `db:"checkout_uuid"`
 	MovementType string         `db:"movement_type"`

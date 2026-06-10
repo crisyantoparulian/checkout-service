@@ -44,15 +44,15 @@ func (r *checkout) Create(ctx context.Context, tx *sqlx.Tx, checkout *entity.Che
 
 func (r *checkout) CreateItem(ctx context.Context, tx *sqlx.Tx, item *entity.CheckoutItem) error {
 	stmt, err := tx.PreparexContext(ctx, `
-		INSERT INTO checkout_items (checkout_uuid, sku, product_name, quantity, unit_price_cents, total_price_cents, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+		INSERT INTO checkout_items (checkout_uuid, product_uuid, sku, product_name, quantity, unit_price_cents, total_price_cents, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
 		RETURNING uuid
 	`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	return stmt.GetContext(ctx, &item.UUID, item.CheckoutUUID, item.SKU, item.ProductName, item.Quantity, item.UnitPriceCents, item.TotalPriceCents)
+	return stmt.GetContext(ctx, &item.UUID, item.CheckoutUUID, item.ProductUUID, item.SKU, item.ProductName, item.Quantity, item.UnitPriceCents, item.TotalPriceCents)
 }
 
 func (r *checkout) CreatePromotion(ctx context.Context, tx *sqlx.Tx, promotion *entity.CheckoutPromotion) error {
@@ -85,7 +85,7 @@ func (r *checkout) GetByUUID(ctx context.Context, checkoutUUID uuid.UUID) (entit
 func (r *checkout) GetItems(ctx context.Context, checkoutUUID uuid.UUID) ([]entity.CheckoutItem, error) {
 	var items []entity.CheckoutItem
 	err := r.db.SelectContext(ctx, &items, `
-		SELECT uuid, checkout_uuid, sku, product_name, quantity, unit_price_cents, total_price_cents, created_at
+		SELECT uuid, checkout_uuid, product_uuid, sku, product_name, quantity, unit_price_cents, total_price_cents, created_at
 		FROM checkout_items
 		WHERE checkout_uuid = $1
 		ORDER BY created_at ASC
